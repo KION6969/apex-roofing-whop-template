@@ -77,15 +77,18 @@ export async function submitWhopLead(payload: LeadSubmissionPayload): Promise<Wh
   //    same way it treats a lead from any other pixel on any other site.
   const pixelEvent = fireWhopPixel('lead', {
     event_id: eventId,
-    value: 0,
-    currency: 'usd',
-    customer_name: payload.name,
-    customer_email: payload.email,
-    customer_phone: payload.phone,
+    currency: 'USD',
+    // Whop's documented customer fields, so the event attaches to a person.
+    email: payload.email,
+    name: payload.name,
+    phone: payload.phone,
     first_name: firstName,
     last_name: rest.join(' '),
+    postal_code: payload.zipCode,
+    external_id: leadId,
+    // Template-specific metadata.
     service_type: payload.serviceRequested,
-    zip_code: payload.zipCode,
+    service_address: payload.address,
     insurance_claim: payload.isInsuranceClaim ? 'yes' : 'no',
     lead_source: 'website_estimate_form',
   });

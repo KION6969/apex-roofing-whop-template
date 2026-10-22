@@ -45,7 +45,7 @@ export const Hero: React.FC<HeroProps> = ({ onOpenCheckout, onScrollTo }) => {
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <CheckCircle style={{ width: 16, height: 16, color: '#f59e0b', flexShrink: 0 }} />
-                <span>Whop Card-on-File Deposit Flow</span>
+                <span>Whop Checkout — deposit + final invoice</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <CheckCircle style={{ width: 16, height: 16, color: '#f59e0b', flexShrink: 0 }} />

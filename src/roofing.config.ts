@@ -253,7 +253,7 @@ export const roofingConfig: RoofingConfig = {
       shortDesc: "Custom seamless aluminum gutters, leaf guards, and custom metal counter-flashing.",
       fullDesc: "Protect your foundation, fascia, and landscaping with custom 6-inch seamless K-style or half-round aluminum gutters rolled on-site, complete with oversized 3x4 downspouts.",
       startingPrice: "From $850",
-      image: "https://images.unsplash.com/photo-1590381105924-c72589b9ef3f?auto=format&fit=crop&w=800&q=80",
+      image: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80",
       features: ["Rolled on-site custom seamless runs", "Heavy-gauge hidden aluminum hangers", "Micro-mesh leaf protection available", "20+ baked-on enamel colors"],
     },
   ],

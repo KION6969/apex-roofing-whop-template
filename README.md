@@ -8,6 +8,16 @@ Tailwind v4.
 The whole business is described in one file (`src/roofing.config.ts`); no component
 knows the company name, the services, or the prices.
 
+## Live site
+
+**https://apex-roofing.whop.site** — deployed with `whop apps deploy` to app
+`app_387jXvVFY3i2K6`. Whop Websites are served on `*.whop.site`; `*.whop.app`
+is the host for installable b2c apps, not websites.
+
+Production plan IDs are in `.env.production` (public values, safe to commit).
+For a sandbox checkout, put sandbox IDs in `.env.local` and set
+`VITE_WHOP_ENVIRONMENT=sandbox`.
+
 ---
 
 ## Quick start

@@ -38,3 +38,7 @@ logs/
 
 # Whop CLI
 .whop/
+.wrangler/
+
+# Local screen-recording output
+recording/

@@ -25,35 +25,22 @@
     <script src="https://cdn.whop.com/elements/amber/elements.js" data-whop-elements async></script>
 
     <!--
-      Local-only pixel stand-in. Whop injects the real pixel (window.whop with
-      track/setScope) on whop.site and whop.app, and this block detects that and
-      does nothing. Running `npm run dev` without it would make every
-      whop.track call throw, so the shim logs instead and marks itself, which
-      tells src/lib/whop-tracking.ts to keep retrying for the real pixel.
+      Official Whop Pixel snippet (docs.whop.com/developer/ads/pixel).
+      It defines window.whop with a queue, loads https://t.whop.tw/s.js, and
+      no-ops if Whop already injected the pixel — which it does on whop.site.
+      Vite substitutes %VITE_WHOP_ACCOUNT_ID% at build time; the scope must be
+      queued before s.js loads, which is why it is set inline rather than from
+      React.
     -->
     <script>
+      !function(w,d,s,u,n,a,b){if(w[n])return;a=w[n]={q:[],t:+new Date,s:[],o:u,track:function(){a.q.push([+new Date].concat([].slice.call(arguments)))},setScope:function(){a.s=[].slice.call(arguments).filter(function(x){return typeof x==="string"});a.q.push([+new Date,"setScope"].concat(a.s))},scope:function(){var c=[].slice.call(arguments);return{track:function(){a.q.push([+new Date].concat([].slice.call(arguments)).concat([{__scope:c}]))}}}};b=d.createElement(s);b.async=1;b.src=u+"/s.js";d.getElementsByTagName(s)[0].parentNode.insertBefore(b,d.getElementsByTagName(s)[0])}(window,document,"script","https://t.whop.tw","whop");
+    </script>
+    <script>
       (function () {
-        if (window.whop && typeof window.whop.track === 'function' && !window.whop.__isShim) {
-          window.__whopPixelMode = 'live';
-          return;
+        var accountId = "%VITE_WHOP_ACCOUNT_ID%";
+        if (typeof accountId === "string" && accountId.indexOf("biz_") === 0 && window.whop && typeof window.whop.setScope === "function") {
+          window.whop.setScope(accountId);
         }
-        window.whop = {
-          __isShim: true,
-          track: function (eventName, eventData) {
-            console.log(
-              '%c[whop.track · local]%c ' + eventName,
-              'background:#ff6423;color:#fff;padding:2px 6px;border-radius:4px;font-weight:700',
-              'color:#ea580c;font-weight:700',
-              eventData || {}
-            );
-            window.dispatchEvent(
-              new CustomEvent('whop:pixel_event', {
-                detail: { name: eventName, data: eventData, timestamp: new Date().toISOString() },
-              })
-            );
-          },
-        };
-        window.__whopPixelMode = 'shim';
       })();
     </script>
   </head>

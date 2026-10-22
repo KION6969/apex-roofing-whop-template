@@ -1,9 +1,9 @@
-/**
+﻿/**
  * Whop Pixel / custom event helper.
  *
  * On Whop Websites (whop.site) and whop.app hosting the pixel is already
  * installed: `window.whop.track(name, data)` is available and every call lands
- * in Dashboard → Events. Locally there is no pixel, so a tiny shim in
+ * in Dashboard â†’ Events. Locally there is no pixel, so a tiny shim in
  * `index.html` logs the calls and this module keeps retrying until the real
  * pixel appears (it normally does within a second of load).
  *
@@ -27,13 +27,12 @@ export interface TrackedPixelEvent {
 interface WhopPixel {
   track?: (eventName: string, eventData?: Record<string, unknown>) => void;
   setScope?: (accountId: string) => void;
-  __isShim?: boolean;
+  q?: unknown[];
 }
 
 declare global {
   interface Window {
     whop?: WhopPixel;
-    __whopPixelMode?: 'shim' | 'live';
     __whopPixelEvents?: TrackedPixelEvent[];
   }
 }
@@ -54,7 +53,7 @@ function notifyListeners() {
 function readPixel(): WhopPixel | undefined {
   if (typeof window === 'undefined') return undefined;
   const pixel = window.whop;
-  if (!pixel || typeof pixel.track !== 'function' || pixel.__isShim) return undefined;
+  if (!pixel || typeof pixel.track !== 'function') return undefined;
   return pixel;
 }
 
@@ -65,6 +64,9 @@ function applyScope(pixel: WhopPixel) {
     try {
       pixel.setScope(whopRuntime.accountId);
       scopeApplied = true;
+      // The pixel snippet sends the first page view itself; send it once the
+      // scope exists so the visit is attributed to the right business.
+      pixel.track?.('page', { path: window.location.pathname });
     } catch (error) {
       console.warn('[whop.track] setScope failed', error);
     }
@@ -96,7 +98,6 @@ function flushQueue() {
   }
 
   if (flushed) {
-    if (typeof window !== 'undefined') window.__whopPixelMode = 'live';
     notifyListeners();
   }
 
@@ -137,7 +138,7 @@ function newEventId(): string {
 }
 
 /**
- * Fire one Whop pixel event. Safe to call before the pixel has loaded — the
+ * Fire one Whop pixel event. Safe to call before the pixel has loaded â€” the
  * call is queued and replayed once window.whop is the real pixel.
  */
 export function fireWhopPixel(
@@ -145,7 +146,6 @@ export function fireWhopPixel(
   eventData: Record<string, unknown> = {},
 ): TrackedPixelEvent {
   const pixel = readPixel();
-  const shimPresent = typeof window !== 'undefined' && window.whop?.__isShim === true;
 
   const event: TrackedPixelEvent = {
     id: newEventId(),
@@ -163,10 +163,6 @@ export function fireWhopPixel(
       event.delivery = 'queued';
       console.warn('[whop.track] delivery failed', eventName, error);
     }
-  } else if (shimPresent) {
-    // Local development only: call the shim so the event is visible in the
-    // console, but keep the record queued so a real pixel can still receive it.
-    window.whop?.track?.(eventName, eventData);
   }
 
   pixelEventHistory.unshift(event);
@@ -180,7 +176,7 @@ export function fireWhopPixel(
 
   if (event.delivery === 'queued') queueForPixel();
 
-  if (!pixel && !shimPresent) {
+  if (!pixel) {
     console.info(`[whop.track] queued "${eventName}" until the Whop pixel loads`, eventData);
   }
 
@@ -206,7 +202,7 @@ export function trackDepositStarted(planId: string, planName: string, amount: nu
     plan_id: planId,
     plan_name: planName,
     value: amount,
-    currency: 'usd',
+    currency: 'USD',
   });
 }
 
@@ -222,13 +218,15 @@ export function trackEstimateRequested(
   eventId?: string,
 ) {
   return fireWhopPixel('estimate_requested', {
-    event_id: eventId,
-    customer_name: leadData.name,
-    customer_email: leadData.email,
-    customer_phone: leadData.phone,
+    // Keep this distinct from the `lead` event's id: Whop dedupes on event_id,
+    // and both events describe the same submission.
+    event_id: eventId ? `${eventId}_estimate` : undefined,
+    name: leadData.name,
+    email: leadData.email,
+    phone: leadData.phone,
+    postal_code: leadData.zipCode,
     service_type: leadData.service,
-    zip_code: leadData.zipCode,
-    currency: 'usd',
+    currency: 'USD',
   });
 }
 
@@ -248,7 +246,7 @@ export function trackCheckoutCompleted(input: {
     plan_id: input.planId,
     plan_name: input.planName,
     value: input.amount,
-    currency: 'usd',
+    currency: 'USD',
     payment_id: input.paymentId,
     checkout_session_id: input.sessionId,
   });
@@ -263,7 +261,7 @@ export function trackInvoiceRequested(input: {
   return fireWhopPixel('invoice_requested', {
     invoice_number: input.invoiceNumber,
     value: input.totalDue,
-    currency: 'usd',
+    currency: 'USD',
     job_reference: input.jobReference,
   });
 }

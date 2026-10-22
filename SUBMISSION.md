@@ -9,17 +9,17 @@ click, or read. Items that require your Whop account are marked **owner action**
 
 | Requirement | State | Evidence |
 | --- | --- | --- |
-| Built on Whop Websites | Code ready, **not deployed** (needs your CLI login) | Deploy section below |
-| Live at a `whop.app` URL | **Owner action** | `whop apps deploy` |
+| Built on Whop Websites | **Live** — https://apex-roofing.whop.site | Deployed with `whop apps deploy` (app `app_387jXvVFY3i2K6`) |
+| Live at a `whop.app` URL | Live on Whop's current website domain, `*.whop.site` | `whop.app` is the b2c-app host; Whop Websites serve on `whop.site` |
 | Whop Payments only, no Stripe/PayPal/custom card form | Done | No card `<input>` exists; see §4 |
-| Sandbox checkout completes with Payment Elements + BrandingElement | Wired, **needs real plan ID** | `WhopCheckoutModal.tsx` |
+| Sandbox checkout completes with Payment Elements + BrandingElement | Mounts real plans; test payment needs sandbox plan IDs | `WhopCheckoutModal.tsx` |
 | Estimate form creates a Lead via Whop | Done (pixel `lead` event) + optional API route | `whop-leads.ts`, `examples/lead-endpoint.ts` |
 | ≥3 custom `whop.track` events, verifiable | 5 custom + standard `lead` | `whop-tracking.ts`, Dashboard → Events |
 | Inspection fee, deposit plan, flat-rate plan | Done: $149 / $500 / $799 | `roofing.config.ts` |
 | Template-reusable, no structural changes | Done: one config file + 3 env vars | `README.md` §"Swapping the business" |
 | Responsive | Verified 390×844 and desktop, no overflow | `src/index.css` media queries |
 | Source code | This repo / `apex-roofing-whop-template.zip` | — |
-| 3–5 min recording | **Owner action** | Script in §6 |
+| 3–5 min recording | Preview recorded (2:29, no payment); final cut pending sandbox plan IDs | Script in §6 |
 | One-paragraph feature list | Ready to paste | §3 |
 
 ---
