@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { roofingConfig, RoofingPlan } from './roofing.config';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
@@ -9,77 +9,99 @@ import { ServiceAreaSection } from './components/ServiceAreaSection';
 import { TrustReviewsSection } from './components/TrustReviewsSection';
 import { EstimateForm } from './components/EstimateForm';
 import { Footer } from './components/Footer';
-import { WhopCheckoutModal } from './components/WhopCheckoutModal';
+import { WhopCheckoutModal, type CheckoutReceipt } from './components/WhopCheckoutModal';
 import { WhopInvoicesFlowDemo } from './components/WhopInvoicesFlowDemo';
 import { LivePixelDebugger } from './components/LivePixelDebugger';
-import { CheckCircle2, ShieldCheck, ArrowRight } from 'lucide-react';
+import { CheckCircle2, AlertCircle } from 'lucide-react';
+
+interface Toast {
+  tone: 'success' | 'error';
+  message: string;
+}
 
 export const App: React.FC = () => {
   const [selectedPlanForCheckout, setSelectedPlanForCheckout] = useState<RoofingPlan | null>(null);
   const [isInvoicesDemoOpen, setIsInvoicesDemoOpen] = useState(false);
-  const [lastDepositReceipt, setLastDepositReceipt] = useState<{
-    planId: string;
-    amount: number;
-    paymentId: string;
-    setupIntentId: string;
-    paymentMethodSummary: string;
-    customerEmail: string;
-    customerName: string;
-  } | null>(null);
+  const [lastDepositReceipt, setLastDepositReceipt] = useState<CheckoutReceipt | null>(null);
+  const [toast, setToast] = useState<Toast | null>(null);
 
-  const [notification, setNotification] = useState<string | null>(null);
-
-  const handleScrollTo = (sectionId: string) => {
-    const el = document.getElementById(sectionId);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth' });
-    }
+  const showToast = (tone: Toast['tone'], message: string) => {
+    setToast({ tone, message });
+    window.setTimeout(() => setToast(null), 9000);
   };
 
-  const handlePaymentSuccess = (receipt: {
-    planId: string;
-    amount: number;
-    paymentId: string;
-    setupIntentId: string;
-    paymentMethodSummary: string;
-    customerEmail: string;
-    customerName: string;
-  }) => {
+  /**
+   * Whop appends `payment` and `status` to the checkout return URL. Show the
+   * outcome, then strip those parameters so a refresh does not replay it.
+   */
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has('whop_return')) return;
+
+    const status = params.get('status');
+    const paymentId = params.get('payment');
+
+    if (status === 'succeeded') {
+      showToast('success', `Payment ${paymentId ?? ''} confirmed by Whop.`);
+    } else if (status === 'failed') {
+      showToast('error', 'Whop reported the payment as failed. Nothing was charged.');
+    } else if (status === 'canceled') {
+      showToast('error', 'Checkout was canceled. Nothing was charged.');
+    } else if (status) {
+      showToast('success', `Payment is still processing (${status}). We will email you when it settles.`);
+    }
+
+    params.delete('whop_return');
+    params.delete('status');
+    params.delete('payment');
+    params.delete('setup');
+    const query = params.toString();
+    window.history.replaceState({}, '', `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`);
+  }, []);
+
+  const handleScrollTo = (sectionId: string) => {
+    document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const handlePaymentSuccess = (receipt: CheckoutReceipt) => {
     setLastDepositReceipt(receipt);
     setSelectedPlanForCheckout(null);
 
-    // Show toast
-    setNotification(
-      `Payment of $${receipt.amount}.00 received via Whop Payments! Ref: ${receipt.paymentId}`
+    showToast(
+      'success',
+      `Payment of $${receipt.amount.toLocaleString()} received via Whop. Ref: ${receipt.paymentId}`,
     );
-    setTimeout(() => setNotification(null), 7000);
 
-    // If it was a deposit, prompt opening the Invoices Demo
-    if (receipt.amount === 500) {
-      setTimeout(() => {
-        setIsInvoicesDemoOpen(true);
-      }, 1500);
+    // A deposit is the start of the invoice flow — open it after the receipt.
+    if (receipt.planType === 'deposit') {
+      window.setTimeout(() => setIsInvoicesDemoOpen(true), 1400);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950">
+    <div className="min-h-screen app-shell">
       {/* Toast Banner */}
-      {notification && (
-        <div className="fixed top-24 right-4 z-50 bg-emerald-500 text-slate-950 px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 font-bold text-xs animate-bounce">
-          <CheckCircle2 className="w-5 h-5 shrink-0" />
-          <span>{notification}</span>
+      {toast && (
+        <div
+          className={`app-toast ${toast.tone === 'error' ? 'app-toast-error' : ''}`}
+          role="status"
+          aria-live="polite"
+        >
+          {toast.tone === 'error' ? (
+            <AlertCircle className="w-5 h-5 shrink-0" />
+          ) : (
+            <CheckCircle2 className="w-5 h-5 shrink-0" />
+          )}
+          <span>{toast.message}</span>
         </div>
       )}
 
-      {/* Primary Navigation */}
       <Navbar
         onOpenCheckout={plan => setSelectedPlanForCheckout(plan)}
         onOpenInvoicesDemo={() => setIsInvoicesDemoOpen(true)}
         onScrollTo={handleScrollTo}
       />
 
-      {/* Main Sections */}
       <main className="flex-1">
         <Hero
           onOpenCheckout={plan => setSelectedPlanForCheckout(plan)}
@@ -108,13 +130,11 @@ export const App: React.FC = () => {
         <EstimateForm />
       </main>
 
-      {/* Footer */}
       <Footer
         onScrollTo={handleScrollTo}
         onOpenInvoicesDemo={() => setIsInvoicesDemoOpen(true)}
       />
 
-      {/* Modals & Live Tools */}
       <WhopCheckoutModal
         isOpen={!!selectedPlanForCheckout}
         plan={selectedPlanForCheckout}
@@ -124,11 +144,10 @@ export const App: React.FC = () => {
 
       <WhopInvoicesFlowDemo
         isOpen={isInvoicesDemoOpen}
-        depositData={lastDepositReceipt}
+        depositReceipt={lastDepositReceipt}
         onClose={() => setIsInvoicesDemoOpen(false)}
       />
 
-      {/* Floating Whop Pixel Event Stream Inspector */}
       <LivePixelDebugger />
     </div>
   );

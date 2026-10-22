@@ -50,16 +50,15 @@ export const Footer: React.FC<FooterProps> = ({ onScrollTo, onOpenInvoicesDemo }
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <h4 style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', color: '#ffffff', letterSpacing: '0.05em' }}>Whop Architecture</h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.75rem' }}>
-              <span style={{ color: '#10b981', fontWeight: 600 }}>• Whop Payment Elements</span>
-              <span style={{ color: '#10b981', fontWeight: 600 }}>• Express Checkout (Apple Pay)</span>
-              <span style={{ color: '#10b981', fontWeight: 600 }}>• Mandatory BrandingElement</span>
-              <span style={{ color: '#10b981', fontWeight: 600 }}>• Whop Leads API Hook</span>
-              <span style={{ color: '#10b981', fontWeight: 600 }}>• SetupIntent Card-on-File</span>
+              <span style={{ color: '#10b981', fontWeight: 600 }}>• Whop Checkout element (Payment Element + BrandingElement)</span>
+              <span style={{ color: '#10b981', fontWeight: 600 }}>• Express Checkout (Apple Pay / Google Pay)</span>
+              <span style={{ color: '#10b981', fontWeight: 600 }}>• Whop Pixel — 5 custom events</span>
+              <span style={{ color: '#10b981', fontWeight: 600 }}>• Lead events + optional API forward</span>
               <button
                 onClick={onOpenInvoicesDemo}
                 style={{ background: 'none', border: 'none', color: '#f59e0b', fontWeight: 800, textAlign: 'left', cursor: 'pointer', padding: 0, marginTop: '0.25rem' }}
               >
-                → Whop Invoices API Demo
+                → Final balance invoice
               </button>
             </div>
           </div>

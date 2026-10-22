@@ -1,22 +1,63 @@
-import React, { useState, useEffect } from 'react';
-import { RoofingPlan } from '../roofing.config';
-import { trackDepositStarted, fireWhopPixel } from '../lib/whop-tracking';
-import { Shield, CheckCircle2, Lock, Smartphone, CreditCard, Sparkles, X, ChevronRight, Zap } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Checkout,
+  CheckoutElement,
+  WhopElements,
+  type CheckoutPaymentCompletion,
+  type CheckoutSetupCompletion,
+  type CheckoutWaitlistCompletion,
+} from '@whop/elements-react';
+import { roofingConfig, type RoofingPlan } from '../roofing.config';
+import { trackDepositStarted, trackCheckoutCompleted } from '../lib/whop-tracking';
+import {
+  WHOP_ENV_KEYS,
+  envKeyForPlan,
+  environmentLabel,
+  getWhopElements,
+  isPlanConfigured,
+  resolvePlanId,
+  whopRuntime,
+} from '../lib/whop-runtime';
+import {
+  Shield,
+  CheckCircle2,
+  Lock,
+  CreditCard,
+  Sparkles,
+  X,
+  AlertTriangle,
+  Copy,
+  Check,
+  RefreshCw,
+} from 'lucide-react';
+
+export interface CheckoutReceipt {
+  planId: string;
+  planName: string;
+  planType: RoofingPlan['type'];
+  amount: number;
+  paymentId: string;
+  sessionId: string;
+  completedAt: string;
+}
 
 interface WhopCheckoutModalProps {
   plan: RoofingPlan | null;
   isOpen: boolean;
   onClose: () => void;
-  onPaymentSuccess: (receipt: {
-    planId: string;
-    amount: number;
-    paymentId: string;
-    setupIntentId: string;
-    paymentMethodSummary: string;
-    customerEmail: string;
-    customerName: string;
-  }) => void;
+  onPaymentSuccess: (receipt: CheckoutReceipt) => void;
 }
+
+type Completion = CheckoutPaymentCompletion | CheckoutWaitlistCompletion | CheckoutSetupCompletion;
+
+const CheckoutSkeleton: React.FC = () => (
+  <div className="whop-checkout-skeleton" aria-live="polite" aria-busy="true">
+    <div className="skeleton-line skeleton-line-lg" />
+    <div className="skeleton-line" />
+    <div className="skeleton-line skeleton-line-sm" />
+    <div className="skeleton-line skeleton-line-lg" />
+  </div>
+);
 
 export const WhopCheckoutModal: React.FC<WhopCheckoutModalProps> = ({
   plan,
@@ -24,76 +65,120 @@ export const WhopCheckoutModal: React.FC<WhopCheckoutModalProps> = ({
   onClose,
   onPaymentSuccess,
 }) => {
-  const [customerEmail, setCustomerEmail] = useState('marcus.homeowner@example.com');
-  const [customerName, setCustomerName] = useState('Marcus Vance');
-  const [selectedMethod, setSelectedMethod] = useState<'express' | 'card' | 'klarna'>('express');
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [saveCardOnFile, setSaveCardOnFile] = useState(true);
-  const [whopElementsReady, setWhopElementsReady] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryLoad, setRetryLoad] = useState<(() => void) | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const planId = plan ? resolvePlanId(plan) : '';
+  const configured = plan ? isPlanConfigured(plan) : false;
 
   useEffect(() => {
     if (isOpen && plan) {
-      // Fire the required deposit_started pixel event
-      trackDepositStarted(plan.id, plan.name, plan.price);
-
-      // Attempt to initialize Whop Elements from CDN if available
-      if (typeof window !== 'undefined' && (window as any).WhopElements) {
-        setWhopElementsReady(true);
-      }
+      if (planId) trackDepositStarted(planId, plan.name, plan.price);
+      setLoadError(null);
     }
-  }, [isOpen, plan]);
+  }, [isOpen, plan, planId]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, onClose]);
+
+  const returnUrl = useMemo(() => {
+    if (typeof window === 'undefined') return undefined;
+    if (window.location.protocol !== 'https:') return undefined;
+    return `${window.location.origin}${window.location.pathname}?whop_return=1`;
+  }, []);
+
+  const metadata = useMemo(
+    () => ({
+      plan_id: planId,
+      plan_type: plan?.type ?? '',
+      plan_name: plan?.name ?? '',
+      business: roofingConfig.company.tradeName,
+      source: 'website_checkout',
+    }),
+    [plan, planId],
+  );
+
+  const handleComplete = useCallback(
+    (completion: Completion) => {
+      if (!plan || completion.result !== 'payment') return;
+
+      trackCheckoutCompleted({
+        planId,
+        planName: plan.name,
+        amount: plan.price,
+        paymentId: completion.paymentId,
+        sessionId: completion.sessionId,
+      });
+
+      onPaymentSuccess({
+        planId,
+        planName: plan.name,
+        planType: plan.type,
+        amount: plan.price,
+        paymentId: completion.paymentId,
+        sessionId: completion.sessionId,
+        completedAt: new Date().toISOString(),
+      });
+    },
+    [onPaymentSuccess, plan, planId],
+  );
+
+  const copyEnvTemplate = async () => {
+    const template = [
+      `${WHOP_ENV_KEYS.accountId}=${roofingConfig.whop.accountId}`,
+      `${WHOP_ENV_KEYS.environment}=production`,
+      `${WHOP_ENV_KEYS.inspectionPlanId}=plan_…`,
+      `${WHOP_ENV_KEYS.depositPlanId}=plan_…`,
+      `${WHOP_ENV_KEYS.flatRatePlanId}=plan_…`,
+    ].join('\n');
+
+    try {
+      await navigator.clipboard.writeText(template);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      console.info('[Whop setup] Copy this into .env:\n' + template);
+    }
+  };
 
   if (!isOpen || !plan) return null;
 
   const isDeposit = plan.type === 'deposit';
-
-  const handleSimulatedCheckout = async () => {
-    setIsProcessing(true);
-    await new Promise(r => setTimeout(r, 1200));
-
-    const simulatedPaymentId = 'pay_' + Math.random().toString(36).substring(2, 12);
-    const simulatedSetupIntentId = 'sint_' + Math.random().toString(36).substring(2, 12);
-    const methodDesc = selectedMethod === 'express' ? 'Apple Pay (•••• 4242)' : selectedMethod === 'klarna' ? 'Klarna Pay in 4' : 'Visa Credit (•••• 4242)';
-
-    // Fire conversion pixel event
-    fireWhopPixel('purchase', {
-      plan_id: plan.whopPlanId,
-      value: plan.price,
-      currency: 'USD',
-      payment_id: simulatedPaymentId,
-      setup_intent_id: simulatedSetupIntentId,
-    });
-
-    setIsProcessing(false);
-    onPaymentSuccess({
-      planId: plan.whopPlanId,
-      amount: plan.price,
-      paymentId: simulatedPaymentId,
-      setupIntentId: simulatedSetupIntentId,
-      paymentMethodSummary: methodDesc,
-      customerEmail,
-      customerName,
-    });
-  };
+  const depositTerms = plan.depositTerms;
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="checkout-modal-card" onClick={e => e.stopPropagation()}>
+    <div className="modal-backdrop" onClick={onClose} role="presentation">
+      <div
+        className="checkout-modal-card"
+        onClick={event => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Checkout — ${plan.name}`}
+      >
         {/* Header */}
         <div className="modal-header">
           <div className="modal-header-branding">
             <span className="brand-pill">
-              <Shield className="w-3.5 h-3.5 text-amber-500" />
+              <Shield className="w-3.5 h-3.5" />
               Whop Secure Payments
             </span>
-            <span className="environment-badge">Sandbox / Live Ready</span>
+            <span className={`environment-badge ${whopRuntime.environment === 'sandbox' ? 'is-sandbox' : ''}`}>
+              {environmentLabel()}
+            </span>
           </div>
-          <button className="modal-close-btn" onClick={onClose} aria-label="Close modal">
+          <button className="modal-close-btn" onClick={onClose} aria-label="Close checkout">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Plan Summary Banner */}
+        {/* Order summary */}
         <div className="order-summary-box">
           <div className="order-summary-main">
             <div>
@@ -110,186 +195,167 @@ export const WhopCheckoutModal: React.FC<WhopCheckoutModalProps> = ({
             </div>
           </div>
 
-          {isDeposit && (
+          {isDeposit && depositTerms && (
             <div className="deposit-callout">
-              <Lock className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-              <div className="text-xs text-slate-300">
-                <strong>Card-on-File Authorization:</strong> This $500 deposit secures your crew and reserves materials.
-                A Whop <code>setup_intent</code> stores your payment method to seamlessly settle your final job balance ($4,500 typical) after project walkthrough.
+              <Lock className="w-4 h-4 shrink-0 mt-0.5" />
+              <div className="text-xs">
+                {depositTerms.termsText} Typical final invoice:{' '}
+                <strong>${depositTerms.finalInvoiceEstimated.toLocaleString()}</strong>.
               </div>
             </div>
           )}
         </div>
 
-        {/* Customer Details Form */}
-        <div className="customer-info-grid">
-          <div>
-            <label className="form-label">Full Name</label>
-            <input
-              type="text"
-              value={customerName}
-              onChange={e => setCustomerName(e.target.value)}
-              className="form-input"
-              placeholder="e.g. Marcus Vance"
-            />
-          </div>
-          <div>
-            <label className="form-label">Email Receipt Address</label>
-            <input
-              type="email"
-              value={customerEmail}
-              onChange={e => setCustomerEmail(e.target.value)}
-              className="form-input"
-              placeholder="e.g. marcus@example.com"
-            />
-          </div>
-        </div>
-
-        {/* Whop Payment Elements Container */}
+        {/* Payment surface */}
         <div className="whop-elements-container">
           <div className="elements-section-title">
-            <span>Whop Payment Element & Express Checkout</span>
-            <span className="pci-badge">PCI-DSS Level 1 Hosted</span>
+            <span>Payment method</span>
+            <span className="pci-badge">PCI-DSS — hosted by Whop</span>
           </div>
 
-          {/* Express Checkout Element (Apple Pay / Google Pay) */}
-          <div className="express-checkout-wrapper">
-            <button
-              type="button"
-              className={`express-btn apple-pay ${selectedMethod === 'express' ? 'active-method' : ''}`}
-              onClick={() => setSelectedMethod('express')}
-            >
-              <Smartphone className="w-4 h-4 mr-2" />
-              Pay with Apple Pay / Google Pay
-            </button>
-            <div className="divider-or">
-              <span>Or pay with financing or card</span>
-            </div>
-          </div>
+          {!configured && <SetupRequiredPanel plan={plan} onCopy={copyEnvTemplate} copied={copied} />}
 
-          {/* Payment Method Selector (Including Whop BNPL: Klarna / Splitit / Afterpay) */}
-          <div className="method-tiles-grid">
-            <button
-              type="button"
-              className={`method-tile ${selectedMethod === 'klarna' ? 'selected' : ''}`}
-              onClick={() => setSelectedMethod('klarna')}
-            >
-              <div className="flex items-center justify-between w-full">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-pink-400" />
-                  <span className="font-semibold text-sm">Klarna / Afterpay</span>
+          {configured && (
+            <>
+              {whopRuntime.environment === 'sandbox' && (
+                <div className="sandbox-note">
+                  <Sparkles className="w-4 h-4" />
+                  <span>
+                    Sandbox mode. Pay with <code>4242 4242 4242 4242</code>, any future expiry, any CVC.
+                    Sandbox supports cards only.
+                  </span>
                 </div>
-                <span className="text-xs bg-pink-500/20 text-pink-300 px-2 py-0.5 rounded">
-                  4x ${(plan.price / 4).toFixed(2)}
+              )}
+
+              {loadError ? (
+                <div className="whop-load-error" role="alert">
+                  <AlertTriangle className="w-4 h-4" />
+                  <div>
+                    <strong>Whop Elements did not load.</strong>
+                    <p>{loadError}</p>
+                    {retryLoad && (
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => {
+                          setLoadError(null);
+                          retryLoad();
+                        }}
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        Retry
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="whop-checkout-shell">
+                  <WhopElements
+                    elements={getWhopElements()}
+                    environment={whopRuntime.environment}
+                    onLoadError={(error, retry) => {
+                      setLoadError(error.message || 'Network error');
+                      setRetryLoad(() => retry);
+                    }}
+                  >
+                    <Checkout
+                      key={planId}
+                      plan={planId}
+                      metadata={metadata}
+                      returnUrl={returnUrl}
+                      onComplete={handleComplete}
+                    >
+                      <CheckoutElement fallback={<CheckoutSkeleton />} />
+                    </Checkout>
+                  </WhopElements>
+                </div>
+              )}
+
+              <div className="whop-disclaimer">
+                <CreditCard className="w-3.5 h-3.5" />
+                <span>
+                  Card details are entered inside Whop&apos;s hosted element and never touch this site. Apple Pay,
+                  Google Pay, Klarna and other methods appear automatically when your Whop account enables them.
                 </span>
               </div>
-              <p className="text-xs text-slate-400 text-left mt-1">
-                4 interest-free installments via Whop Payments. 0% APR.
-              </p>
-            </button>
-
-            <button
-              type="button"
-              className={`method-tile ${selectedMethod === 'card' ? 'selected' : ''}`}
-              onClick={() => setSelectedMethod('card')}
-            >
-              <div className="flex items-center justify-between w-full">
-                <div className="flex items-center gap-2">
-                  <CreditCard className="w-4 h-4 text-sky-400" />
-                  <span className="font-semibold text-sm">Credit / Debit Card</span>
-                </div>
-                <span className="text-xs text-slate-400">Visa, MC, Amex</span>
-              </div>
-              <p className="text-xs text-slate-400 text-left mt-1">
-                Direct merchant checkout tokenized through Whop CDN frame.
-              </p>
-            </button>
-          </div>
-
-          {/* Card Input fields (PCI-isolated representation) */}
-          {selectedMethod === 'card' && (
-            <div className="hosted-card-fields">
-              <div>
-                <label className="form-label">Card Number</label>
-                <div className="fake-card-input">
-                  <span>4242 •••• •••• 4242</span>
-                  <span className="test-badge">WHOP TEST CARD</span>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2 mt-2">
-                <div>
-                  <label className="form-label">Expiration</label>
-                  <div className="fake-card-input"><span>12/28</span></div>
-                </div>
-                <div>
-                  <label className="form-label">CVC</label>
-                  <div className="fake-card-input"><span>•••</span></div>
-                </div>
-              </div>
-            </div>
+            </>
           )}
-
-          {/* Card-On-File Setup Intent Checkbox */}
-          {isDeposit && (
-            <label className="save-card-toggle">
-              <input
-                type="checkbox"
-                checked={saveCardOnFile}
-                onChange={e => setSaveCardOnFile(e.target.checked)}
-                className="rounded accent-amber-500"
-              />
-              <span className="text-xs text-slate-300">
-                Save payment method securely on file with Whop SetupIntent for the remaining project balance invoice upon final roof walkthrough.
-              </span>
-            </label>
-          )}
-
-          {/* Pay Button */}
-          <button
-            type="button"
-            className="checkout-submit-btn"
-            disabled={isProcessing}
-            onClick={handleSimulatedCheckout}
-          >
-            {isProcessing ? (
-              <span className="flex items-center justify-center gap-2">
-                <span className="spinner"></span>
-                Processing via Whop Payments...
-              </span>
-            ) : (
-              <span className="flex items-center justify-center gap-2">
-                <Lock className="w-4 h-4" />
-                Pay ${plan.price}.00 {isDeposit ? 'Deposit' : 'Now'}
-                <ChevronRight className="w-4 h-4" />
-              </span>
-            )}
-          </button>
-
-          {/* Mandatory Whop BrandingElement */}
-          <div className="branding-element-slot" id="payments-branding">
-            <div className="branding-element-inner">
-              <span className="powered-text">Powered by</span>
-              <div className="whop-logo-pill">
-                <span className="whop-w">W</span>
-                <span className="whop-text">whop</span>
-              </div>
-              <span className="encrypted-text">• 256-bit Encrypted Checkout</span>
-            </div>
-          </div>
         </div>
 
-        {/* Trust Guarantees */}
+        {/* Trust row */}
         <div className="modal-footer-guarantees">
           <div className="guarantee-item">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-            <span>100% Refundable Deposit up to 72 hrs</span>
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>{isDeposit ? 'Deposit 100% refundable up to 72h before materials' : 'Backed by our workmanship warranty'}</span>
           </div>
           <div className="guarantee-item">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Inspection fee 100% credited to repairs</span>
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>{isDeposit ? 'Balance invoiced after final walkthrough' : 'No hidden fees at checkout'}</span>
           </div>
         </div>
       </div>
+    </div>
+  );
+};
+
+/* -------------------------------------------------------------------------- */
+/* Shown until the three plan IDs are filled in.                              */
+/* -------------------------------------------------------------------------- */
+
+const SetupRequiredPanel: React.FC<{
+  plan: RoofingPlan;
+  onCopy: () => void;
+  copied: boolean;
+}> = ({ plan, onCopy, copied }) => {
+  const rows = roofingConfig.plans.map(item => ({
+    name: item.name,
+    envKey: envKeyForPlan(item),
+    value: resolvePlanId(item),
+    ok: isPlanConfigured(item),
+  }));
+
+  return (
+    <div className="whop-config-panel">
+      <div className="whop-config-heading">
+        <AlertTriangle className="w-4 h-4" />
+        <strong>This plan is not connected to Whop yet</strong>
+      </div>
+      <p>
+        Checkout is disabled on purpose instead of being simulated. Add the plan ID below, rebuild, and this exact
+        panel is replaced by Whop&apos;s real checkout element.
+      </p>
+
+      <div className="whop-config-code">
+        <span>{envKeyForPlan(plan)}=</span>
+        <span className="whop-config-placeholder">plan_…</span>
+      </div>
+
+      <ul className="whop-config-list">
+        {rows.map(row => (
+          <li key={row.envKey}>
+            <span className={row.ok ? 'whop-config-ok' : 'whop-config-missing'}>
+              {row.ok ? '●' : '○'}
+            </span>
+            <code>{row.envKey}</code>
+            <span className={row.ok ? 'whop-config-ok' : 'whop-config-missing'}>
+              {row.ok ? 'connected' : 'missing'}
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      <button type="button" className="btn btn-secondary btn-sm" onClick={onCopy}>
+        {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+        {copied ? 'Copied' : 'Copy .env template'}
+      </button>
+
+      <p className="whop-config-hint">
+        Create the three plans in{' '}
+        <a href="https://whop.com/dashboard/" target="_blank" rel="noreferrer">
+          Whop Dashboard → Products
+        </a>{' '}
+        (inspection fee, project deposit, flat-rate service), then paste their <code>plan_…</code> IDs here.
+      </p>
     </div>
   );
 };

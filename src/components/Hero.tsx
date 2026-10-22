@@ -119,7 +119,7 @@ export const Hero: React.FC<HeroProps> = ({ onOpenCheckout, onScrollTo }) => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.75rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', background: '#090e1a', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', border: '1px solid #1e293b' }}>
                     <span style={{ color: '#cbd5e1' }}>1. Project Deposit</span>
-                    <strong style={{ color: '#10b981', fontFamily: 'monospace' }}>$500 (SetupIntent)</strong>
+                    <strong style={{ color: '#10b981', fontFamily: 'monospace' }}>${depositPlan.price}</strong>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', background: '#090e1a', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', border: '1px solid #1e293b' }}>
                     <span style={{ color: '#cbd5e1' }}>2. Tear-Off & Shingle Install</span>
@@ -127,7 +127,9 @@ export const Hero: React.FC<HeroProps> = ({ onOpenCheckout, onScrollTo }) => {
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', background: '#090e1a', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', border: '1px solid #1e293b' }}>
                     <span style={{ color: '#cbd5e1' }}>3. Final Balance Invoice</span>
-                    <strong style={{ color: '#f59e0b', fontFamily: 'monospace' }}>$4,500 (Auto-Charge / Send)</strong>
+                    <strong style={{ color: '#f59e0b', fontFamily: 'monospace' }}>
+                      ${(depositPlan.depositTerms?.finalInvoiceEstimated ?? 0).toLocaleString()} (Whop)
+                    </strong>
                   </div>
                 </div>
               </div>

@@ -1,82 +1,94 @@
-import React, { useState, useEffect } from 'react';
-import { subscribeToPixelEvents, TrackedPixelEvent } from '../lib/whop-tracking';
-import { Activity, ChevronDown, ChevronUp, Check, Eye } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import {
+  subscribeToPixelEvents,
+  isPixelLive,
+  type TrackedPixelEvent,
+} from '../lib/whop-tracking';
+import { whopRuntime, isRealAccountId, environmentLabel } from '../lib/whop-runtime';
+import { Activity, ChevronDown, ChevronUp, Check, ExternalLink, Radio } from 'lucide-react';
+
+const deliveryLabel: Record<TrackedPixelEvent['delivery'], string> = {
+  pixel: 'delivered',
+  queued: 'queued',
+  'local-shim': 'local only',
+};
 
 export const LivePixelDebugger: React.FC = () => {
   const [events, setEvents] = useState<TrackedPixelEvent[]>([]);
   const [isOpen, setIsOpen] = useState(false);
-  const [flashCount, setFlashCount] = useState(0);
 
-  useEffect(() => {
-    return subscribeToPixelEvents(newEvents => {
-      setEvents(newEvents);
-      setFlashCount(prev => prev + 1);
-    });
-  }, []);
+  useEffect(() => subscribeToPixelEvents(setEvents), []);
+
+  const live = isPixelLive();
+  const scoped = isRealAccountId(whopRuntime.accountId);
 
   return (
-    <aside aria-label="Whop Pixel Debugger" className="fixed bottom-4 right-4 z-50 font-sans">
-      {/* Floating Pill Toggle Button */}
+    <aside aria-label="Whop pixel event inspector" className="pixel-debugger">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-2 bg-slate-900/90 hover:bg-slate-900 text-white rounded-full border border-amber-500/40 shadow-xl backdrop-blur-md text-xs font-semibold transition hover:scale-105"
+        className="pixel-debugger-toggle"
+        aria-expanded={isOpen}
       >
-        <span className="relative flex h-2.5 w-2.5">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+        <span className="pixel-dot">
+          <span className="pixel-dot-ping" />
+          <span className="pixel-dot-core" />
         </span>
-        <Activity className="w-3.5 h-3.5 text-amber-400" />
-        <span>Whop Pixel Stream</span>
-        <span className="bg-amber-500 text-slate-950 font-black px-1.5 py-0.2 rounded-full text-[10px]">
-          {events.length}
-        </span>
+        <Activity className="w-3.5 h-3.5" />
+        <span>Whop Pixel</span>
+        <span className="pixel-count">{events.length}</span>
         {isOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
       </button>
 
-      {/* Expanded Pixel Stream Tray */}
       {isOpen && (
-        <div className="mt-2 w-80 sm:w-96 max-h-96 bg-slate-950/95 border border-slate-800 rounded-xl shadow-2xl overflow-hidden backdrop-blur-lg flex flex-col">
-          <div className="px-3 py-2 bg-slate-900 border-b border-slate-800 flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400">
-                Live whop.track Events
+        <div className="pixel-debugger-tray">
+          <div className="pixel-debugger-head">
+            <div>
+              <span className="pixel-debugger-title">whop.track events</span>
+              <span className="pixel-debugger-sub">
+                {environmentLabel()} · {scoped ? whopRuntime.accountId : 'no account scope set'}
               </span>
-              <span className="text-[10px] text-slate-400">whop.app scoped</span>
             </div>
-            <span className="text-[10px] text-emerald-400 font-mono flex items-center gap-1">
-              <Check className="w-3 h-3" /> Listening
+            <span className={`pixel-status ${live ? 'is-live' : 'is-pending'}`}>
+              {live ? <Check className="w-3 h-3" /> : <Radio className="w-3 h-3" />}
+              {live ? 'pixel live' : 'not delivered yet'}
             </span>
           </div>
 
-          <div className="p-2 overflow-y-auto space-y-2 text-xs flex-1 max-h-72">
+          <div className="pixel-debugger-body">
             {events.length === 0 ? (
-              <div className="p-4 text-center text-slate-500 text-[11px]">
-                No custom events fired yet. Try viewing a service, requesting an estimate, or clicking a deposit button!
+              <div className="pixel-empty">
+                No events yet. Open a service, submit the estimate form, or start a checkout.
               </div>
             ) : (
-              events.map(evt => (
-                <div
-                  key={evt.id}
-                  className="p-2 rounded-lg bg-slate-900/80 border border-slate-800/80 font-mono text-[11px]"
-                >
-                  <div className="flex items-center justify-between text-amber-400 font-bold mb-1">
-                    <span className="flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
-                      whop.track("{evt.name}")
+              events.map(event => (
+                <div key={event.id} className="pixel-event">
+                  <div className="pixel-event-head">
+                    <span className="pixel-event-name">
+                      <span className={`pixel-event-dot ${event.delivery}`} />
+                      whop.track(&quot;{event.name}&quot;)
                     </span>
-                    <span className="text-[10px] text-slate-400">{evt.timestamp}</span>
+                    <span className="pixel-event-meta">
+                      <span className={`pixel-delivery ${event.delivery}`}>
+                        {deliveryLabel[event.delivery]}
+                      </span>
+                      {event.timestamp}
+                    </span>
                   </div>
-                  <pre className="text-[10px] text-slate-300 bg-slate-950 p-1.5 rounded overflow-x-auto">
-                    {JSON.stringify(evt.data, null, 2)}
-                  </pre>
+                  <pre className="pixel-event-data">{JSON.stringify(event.data, null, 2)}</pre>
                 </div>
               ))
             )}
           </div>
 
-          <div className="px-3 py-1.5 bg-slate-900 border-t border-slate-800 text-[10px] text-slate-400 text-center">
-            Standard events (PageViews, CheckoutViews) fire automatically on whop.app
-          </div>
+          <a
+            className="pixel-debugger-foot"
+            href="https://whop.com/dashboard/events"
+            target="_blank"
+            rel="noreferrer"
+          >
+            <ExternalLink className="w-3 h-3" />
+            Verify the same events in Whop Dashboard → Events
+          </a>
         </div>
       )}
     </aside>

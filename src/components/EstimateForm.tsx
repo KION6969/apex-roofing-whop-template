@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { roofingConfig } from '../roofing.config';
-import { submitWhopLead, WhopLeadResult } from '../lib/whop-leads';
+import { submitWhopLead, type WhopLeadResult } from '../lib/whop-leads';
 import { trackEstimateRequested } from '../lib/whop-tracking';
-import { Send, CheckCircle2, ShieldCheck, RefreshCw, FileText, Phone, Mail, MapPin } from 'lucide-react';
+import { Send, CheckCircle2, ShieldCheck, RefreshCw, FileText, Phone, Mail, MapPin, Radio } from 'lucide-react';
 
 export const EstimateForm: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -24,7 +24,7 @@ export const EstimateForm: React.FC = () => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    // 1. Fire required custom Whop pixel event
+    // Custom pixel event #1 — visible in the stream inspector and in Whop.
     trackEstimateRequested({
       name: formData.name,
       email: formData.email,
@@ -33,21 +33,18 @@ export const EstimateForm: React.FC = () => {
       zipCode: formData.zipCode,
     });
 
-    // 2. Wire directly to Whop Leads API: POST /api/v1/leads
-    const result = await submitWhopLead(
-      {
-        name: formData.name,
-        email: formData.email,
-        phone: formData.phone,
-        address: formData.address,
-        zipCode: formData.zipCode,
-        serviceRequested: formData.service,
-        roofAgeYears: formData.roofAge,
-        isInsuranceClaim: formData.isInsuranceClaim,
-        notes: formData.notes,
-      },
-      roofingConfig.whop.accountId
-    );
+    // Standard `lead` event + optional server-side copy.
+    const result = await submitWhopLead({
+      name: formData.name,
+      email: formData.email,
+      phone: formData.phone,
+      address: formData.address,
+      zipCode: formData.zipCode,
+      serviceRequested: formData.service,
+      roofAgeYears: formData.roofAge,
+      isInsuranceClaim: formData.isInsuranceClaim,
+      notes: formData.notes,
+    });
 
     setLeadResult(result);
     setIsSubmitting(false);
@@ -57,11 +54,11 @@ export const EstimateForm: React.FC = () => {
     <section id="estimate" className="section section-alt">
       <div className="container">
         <div className="grid-2" style={{ alignItems: 'flex-start' }}>
-          {/* Left Column: Contact info & value guarantees */}
+          {/* Left column */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <div className="section-pill">
               <FileText style={{ width: 14, height: 14 }} />
-              <span>Whop Leads API Connected</span>
+              <span>Whop lead event + optional API forward</span>
             </div>
 
             <h2 className="section-title" style={{ textAlign: 'left', marginBottom: 0 }}>
@@ -69,7 +66,10 @@ export const EstimateForm: React.FC = () => {
             </h2>
 
             <p style={{ color: '#cbd5e1', fontSize: '1rem', lineHeight: 1.6 }}>
-              Every request is automatically routed into our business account via the <strong>Whop Leads API</strong>. Our senior field estimator will review your aerial pitch and satellite measurements, then deliver an itemized PDF quote within 24 hours.
+              Every submission fires a standard <code>whop.track(&#39;lead&#39;, …)</code> event, so the request
+              appears in your Whop dashboard under Events and People. Set{' '}
+              <code>VITE_LEAD_ENDPOINT</code> to also forward the same lead to your own server with a
+              server-held Whop API key.
             </p>
 
             <div style={{ padding: '1.5rem', borderRadius: '1rem', background: '#020617', border: '1px solid #1e293b', display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.8125rem' }}>
@@ -101,16 +101,18 @@ export const EstimateForm: React.FC = () => {
             </div>
           </div>
 
-          {/* Right Column: Form itself */}
+          {/* Right column: form */}
           <div style={{ background: '#020617', border: '1px solid #334155', borderRadius: '1.25rem', padding: '2rem', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.85)' }}>
             {!leadResult ? (
               <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className="form-row-2">
                   <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">Property Owner Full Name *</label>
+                    <label className="form-label" htmlFor="lead-name">Property Owner Full Name *</label>
                     <input
+                      id="lead-name"
                       type="text"
                       required
+                      autoComplete="name"
                       value={formData.name}
                       onChange={e => setFormData({ ...formData, name: e.target.value })}
                       className="form-input"
@@ -118,10 +120,12 @@ export const EstimateForm: React.FC = () => {
                     />
                   </div>
                   <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">Email Address *</label>
+                    <label className="form-label" htmlFor="lead-email">Email Address *</label>
                     <input
+                      id="lead-email"
                       type="email"
                       required
+                      autoComplete="email"
                       value={formData.email}
                       onChange={e => setFormData({ ...formData, email: e.target.value })}
                       className="form-input"
@@ -130,12 +134,14 @@ export const EstimateForm: React.FC = () => {
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className="form-row-2">
                   <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">Phone Number *</label>
+                    <label className="form-label" htmlFor="lead-phone">Phone Number *</label>
                     <input
+                      id="lead-phone"
                       type="tel"
                       required
+                      autoComplete="tel"
                       value={formData.phone}
                       onChange={e => setFormData({ ...formData, phone: e.target.value })}
                       className="form-input"
@@ -143,10 +149,13 @@ export const EstimateForm: React.FC = () => {
                     />
                   </div>
                   <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">Postal Zip Code *</label>
+                    <label className="form-label" htmlFor="lead-zip">Postal Zip Code *</label>
                     <input
+                      id="lead-zip"
                       type="text"
                       required
+                      inputMode="numeric"
+                      autoComplete="postal-code"
                       value={formData.zipCode}
                       onChange={e => setFormData({ ...formData, zipCode: e.target.value })}
                       className="form-input"
@@ -156,9 +165,11 @@ export const EstimateForm: React.FC = () => {
                 </div>
 
                 <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Street Address</label>
+                  <label className="form-label" htmlFor="lead-address">Street Address</label>
                   <input
+                    id="lead-address"
                     type="text"
+                    autoComplete="street-address"
                     value={formData.address}
                     onChange={e => setFormData({ ...formData, address: e.target.value })}
                     className="form-input"
@@ -166,24 +177,25 @@ export const EstimateForm: React.FC = () => {
                   />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className="form-row-2">
                   <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">Primary Service Needed</label>
+                    <label className="form-label" htmlFor="lead-service">Primary Service Needed</label>
                     <select
+                      id="lead-service"
                       value={formData.service}
                       onChange={e => setFormData({ ...formData, service: e.target.value })}
                       className="form-select"
                     >
-                      <option value="Full Roof Replacement">Full Roof Replacement</option>
-                      <option value="Emergency Leak Repair">Emergency Leak Repair</option>
-                      <option value="Drone Inspection & Certification">Drone Inspection & Certification</option>
-                      <option value="Gutters & Flashing">Gutters & Flashing</option>
+                      {roofingConfig.services.map(service => (
+                        <option key={service.id} value={service.title}>{service.title}</option>
+                      ))}
                     </select>
                   </div>
 
                   <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">Estimated Roof Age</label>
+                    <label className="form-label" htmlFor="lead-roof-age">Estimated Roof Age</label>
                     <select
+                      id="lead-roof-age"
                       value={formData.roofAge}
                       onChange={e => setFormData({ ...formData, roofAge: e.target.value })}
                       className="form-select"
@@ -192,14 +204,15 @@ export const EstimateForm: React.FC = () => {
                       <option value="6-10 years">6-10 years (Mid-life)</option>
                       <option value="11-15 years">11-15 years (Wear starting)</option>
                       <option value="16-20+ years">16-20+ years (Replacement ready)</option>
-                      <option value="Unknown">I don't know</option>
+                      <option value="Unknown">I don&apos;t know</option>
                     </select>
                   </div>
                 </div>
 
                 <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Project Details / Storm Damage Notes</label>
+                  <label className="form-label" htmlFor="lead-notes">Project Details / Storm Damage Notes</label>
                   <textarea
+                    id="lead-notes"
                     rows={3}
                     value={formData.notes}
                     onChange={e => setFormData({ ...formData, notes: e.target.value })}
@@ -230,57 +243,84 @@ export const EstimateForm: React.FC = () => {
                   {isSubmitting ? (
                     <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <RefreshCw style={{ width: 18, height: 18 }} className="spinner" />
-                      <span>Routing to Whop Leads API (POST /api/v1/leads)...</span>
+                      <span>Recording lead…</span>
                     </span>
                   ) : (
                     <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <Send style={{ width: 18, height: 18 }} />
-                      <span>Submit Estimate Request (Triggers Whop Leads API)</span>
+                      <span>Submit Estimate Request</span>
                     </span>
                   )}
                 </button>
 
                 <div style={{ fontSize: '0.75rem', color: '#64748b', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}>
-                  <span>Fires Whop custom pixel:</span>
+                  <span>Fires</span>
+                  <code style={{ color: '#f59e0b', fontWeight: 800 }}>whop.track(&#39;lead&#39;)</code>
+                  <span>and</span>
                   <code style={{ color: '#f59e0b', fontWeight: 800 }}>estimate_requested</code>
                 </div>
               </form>
             ) : (
-              /* Success Receipt Card */
+              /* Success receipt */
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', textAlign: 'left' }}>
                 <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
                   <CheckCircle2 style={{ width: 28, height: 28 }} />
                 </div>
 
                 <div style={{ textAlign: 'center' }}>
-                  <h3 style={{ fontSize: '1.25rem', fontWeight: 900, color: '#ffffff' }}>Lead Successfully Captured on Whop!</h3>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 900, color: '#ffffff' }}>Lead recorded</h3>
                   <p style={{ fontSize: '0.8125rem', color: '#94a3b8', marginTop: '0.25rem' }}>
-                    Your estimate request has landed directly in our Whop account dashboard via the Whop Leads API.
+                    {leadResult.message}
                   </p>
                 </div>
 
-                {/* Whop API Payload Inspector */}
                 <div style={{ background: '#090e1a', border: '1px solid #1e293b', borderRadius: '0.75rem', padding: '1rem', fontSize: '0.75rem', fontFamily: 'monospace', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #1e293b', paddingBottom: '0.5rem' }}>
-                    <span>API Status: <strong style={{ color: '#10b981' }}>201 CREATED</strong></span>
-                    <span>Mode: <strong style={{ color: '#fcd34d' }}>{leadResult.mode}</strong></span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #1e293b', paddingBottom: '0.5rem', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <span>
+                      Pixel:{' '}
+                      <strong style={{ color: leadResult.pixelEvent.delivery === 'pixel' ? '#10b981' : '#fcd34d' }}>
+                        {leadResult.pixelEvent.delivery}
+                      </strong>
+                    </span>
+                    <span>
+                      Mode: <strong style={{ color: '#fcd34d' }}>{leadResult.mode}</strong>
+                    </span>
                   </div>
                   <div>Lead ID: <span style={{ color: '#f59e0b', fontWeight: 800 }}>{leadResult.leadId}</span></div>
-                  <div>Target Business: <span style={{ color: '#cbd5e1' }}>{leadResult.accountId}</span></div>
-                  <div>Timestamp: <span style={{ color: '#94a3b8' }}>{leadResult.createdAt}</span></div>
+                  <div>Event ID: <span style={{ color: '#cbd5e1' }}>{leadResult.eventId}</span></div>
+                  <div>Account: <span style={{ color: '#cbd5e1' }}>{leadResult.accountId}</span></div>
+                  <div>Time: <span style={{ color: '#94a3b8' }}>{leadResult.createdAt}</span></div>
+
+                  {leadResult.endpointError && (
+                    <div style={{ color: '#fda4af' }}>Endpoint: {leadResult.endpointError}</div>
+                  )}
+
                   <div style={{ paddingTop: '0.35rem' }}>
-                    <span style={{ color: '#94a3b8', display: 'block', marginBottom: '0.25rem' }}>Captured Metadata:</span>
+                    <span style={{ color: '#94a3b8', display: 'block', marginBottom: '0.25rem' }}>
+                      Pixel payload sent to Whop:
+                    </span>
                     <pre style={{ background: '#020617', padding: '0.5rem', borderRadius: '0.375rem', color: '#cbd5e1', overflowX: 'auto' }}>
-                      {JSON.stringify(leadResult.rawPayload.metadata, null, 2)}
+                      {JSON.stringify({ name: leadResult.pixelEvent.name, ...leadResult.pixelEvent.data }, null, 2)}
                     </pre>
                   </div>
                 </div>
+
+                <a
+                  href="https://whop.com/dashboard/events"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn btn-secondary btn-block"
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
+                >
+                  <Radio style={{ width: 16, height: 16 }} />
+                  Verify in Whop Dashboard → Events
+                </a>
 
                 <button
                   onClick={() => setLeadResult(null)}
                   className="btn btn-secondary btn-block"
                 >
-                  Submit Another Quote Request
+                  Submit another request
                 </button>
               </div>
             )}

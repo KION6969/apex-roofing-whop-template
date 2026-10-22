@@ -57,12 +57,20 @@ export interface RoofingConfig {
     reviewCount: number;
   };
   whop: {
-    accountId: string; // biz_...
+    accountId: string; // biz_... (also the pixel scope)
     defaultPlanId: string; // plan_...
     depositPlanId: string;
     inspectionPlanId: string;
     flatRatePlanId: string;
-    demoMode: boolean; // allows sandbox / live mode toggle
+    /**
+     * Which Whop environment Elements should talk to. `production` is the
+     * default; `sandbox` points Elements at sandbox.whop.com test cards.
+     * Override at build time with VITE_WHOP_ENVIRONMENT.
+     */
+    environment: 'production' | 'sandbox';
+    /** Where the "create final balance invoice" button sends the contractor. */
+    invoiceDashboardUrl: string;
+    /** Optional site URL, used in copy and invoice references. */
     appUrl: string;
   };
   financing: {
@@ -107,13 +115,16 @@ export const roofingConfig: RoofingConfig = {
     reviewCount: 428,
   },
   whop: {
-    accountId: "biz_apexroofing_demo",
-    defaultPlanId: "plan_deposit_500",
-    depositPlanId: "plan_deposit_500",
-    inspectionPlanId: "plan_inspection_149",
-    flatRatePlanId: "plan_stormseal_799",
-    demoMode: true,
-    appUrl: "https://apex-roofing.whop.site",
+    // ── Replace these five values with your own Whop identifiers ──────────────
+    // Everything else in the template is driven from this config file.
+    accountId: "biz_REPLACE_WITH_YOUR_ACCOUNT_ID",
+    defaultPlanId: "plan_REPLACE_INSPECTION",
+    depositPlanId: "plan_REPLACE_DEPOSIT",
+    inspectionPlanId: "plan_REPLACE_INSPECTION",
+    flatRatePlanId: "plan_REPLACE_FLAT_RATE",
+    environment: "production",
+    invoiceDashboardUrl: "https://whop.com/dashboard/",
+    appUrl: "",
   },
   financing: {
     heading: "0% APR Financing Up To 18 Months",
@@ -149,7 +160,7 @@ export const roofingConfig: RoofingConfig = {
       price: 149,
       type: "inspection",
       billingType: "one-time",
-      whopPlanId: "plan_inspection_149",
+      whopPlanId: "plan_REPLACE_INSPECTION",
       description: "Comprehensive 4K aerial drone mapping, attic moisture check, shingle granule loss analysis, and a certified digital inspection report within 24 hours.",
       features: [
         "4K Ultra-HD Drone Aerial Thermal Scan",
@@ -168,17 +179,17 @@ export const roofingConfig: RoofingConfig = {
       popular: true,
       type: "deposit",
       billingType: "deposit-card-on-file",
-      whopPlanId: "plan_deposit_500",
-      description: "Standard project commitment deposit for major repair or full replacement. Secures your spot on the production calendar with Card-On-File stored via Whop SetupIntent for final balance billing.",
+      whopPlanId: "plan_REPLACE_DEPOSIT",
+      description: "Standard project commitment deposit for major repair or full replacement. Secures your spot on the production calendar today; the remaining balance is invoiced through Whop after the final walkthrough.",
       depositTerms: {
         depositAmount: 500,
         finalInvoiceEstimated: 4500,
-        termsText: "A $500 project deposit is collected today. Your payment method will be securely stored on file via Whop Payments. Remaining project balance ($4,500 typical) will be invoiced upon completion after your final walkthrough inspection.",
+        termsText: "A $500 project deposit is collected today by Whop. The remaining balance (about $4,500) is invoiced by Whop after your final walkthrough inspection and can be paid by card or in installments.",
       },
       features: [
         "Secures your crew date on the production calendar",
         "Immediate wholesale materials order & delivery lock",
-        "Stores payment method via Whop SetupIntent for final balance invoice",
+        "Remaining balance invoiced through Whop after walkthrough",
         "Deducted directly from your final job balance",
         "100% refundable up to 72 hours prior to material delivery",
       ],
@@ -190,14 +201,14 @@ export const roofingConfig: RoofingConfig = {
       price: 799,
       type: "service",
       billingType: "one-time",
-      whopPlanId: "plan_stormseal_799",
+      whopPlanId: "plan_REPLACE_FLAT_RATE",
       description: "Complete maintenance tune-up covering pipe boot replacements, chimney flashing sealant, ridge cap re-nailing, and minor leak repairs up to 10 damaged shingles.",
       features: [
         "Replacement of up to 3 weathered plumbing vent pipe boots",
         "High-grade elastomeric sealant on all flashing & penetrations",
         "Fastening of loose ridge caps & edge shingles",
         "Gutter debris clearing around downspout openings (up to 150 linear ft)",
-        "Includes 1-Year Apex No-Leak Warranty",
+        "Includes a 1-year no-leak workmanship warranty",
       ],
     },
   ],

@@ -11,6 +11,8 @@ export const PlansBookingSection: React.FC<PlansBookingSectionProps> = ({
   onOpenCheckout,
   onOpenInvoicesDemo,
 }) => {
+  const depositPlan = roofingConfig.plans.find(plan => plan.type === 'deposit');
+
   return (
     <section id="plans" className="section section-alt">
       <div className="container">
@@ -18,7 +20,7 @@ export const PlansBookingSection: React.FC<PlansBookingSectionProps> = ({
         <div className="section-header">
           <div className="section-pill emerald">
             <ShieldCheck style={{ width: 14, height: 14 }} />
-            <span>Upfront, Transparent Whop Pricing</span>
+            <span>Transparent Whop pricing — pay on the page</span>
           </div>
           <h2 className="section-title">
             Fixed Roofing Plans & Project Deposits
@@ -47,7 +49,7 @@ export const PlansBookingSection: React.FC<PlansBookingSectionProps> = ({
 
                 <div>
                   <span className="plan-type-label">
-                    {isDeposit ? 'Card-On-File SetupIntent' : 'One-Time Service Plan'}
+                    {isDeposit ? 'Project deposit + final invoice' : 'One-time service plan'}
                   </span>
                   <h3 className="plan-name">{plan.name}</h3>
                   <p style={{ fontSize: '0.8125rem', color: '#94a3b8', lineHeight: 1.5 }}>{plan.tagline}</p>
@@ -59,9 +61,11 @@ export const PlansBookingSection: React.FC<PlansBookingSectionProps> = ({
                     </span>
                   </div>
 
-                  {isDeposit && (
+                  {isDeposit && plan.depositTerms && (
                     <div className="plan-deposit-notice">
-                      <strong>Deposit Flow:</strong> Stores payment method via Whop SetupIntent. Balance of ~$4,500 invoiced after job completion walkthrough.
+                      <strong>Deposit flow:</strong> Pay ${plan.price} today. The remaining balance (~
+                      ${plan.depositTerms.finalInvoiceEstimated.toLocaleString()}) is invoiced through Whop after your
+                      final walkthrough.
                     </div>
                   )}
 
@@ -112,7 +116,12 @@ export const PlansBookingSection: React.FC<PlansBookingSectionProps> = ({
               </span>
             </div>
             <p style={{ color: '#cbd5e1', fontSize: '0.875rem', lineHeight: 1.6 }}>
-              Whop's <strong>SetupIntent</strong> captures the customer's payment method during the initial $500 deposit. Once the crew finishes the roof tear-off and installation, the contractor generates the final balance invoice ($4,500) via the <strong>Whop Invoices API</strong> to automatically charge the card on file or send an invoice email.
+              Whop&apos;s <strong>Checkout element</strong> takes the{' '}
+              <strong>${depositPlan?.price ?? 500} deposit</strong> directly on this page — card, Apple Pay / Google Pay,
+              and Klarna where your account enables them. When the roof is finished, the contractor creates the final{' '}
+              <strong>${(depositPlan?.depositTerms?.finalInvoiceEstimated ?? 4500).toLocaleString()} invoice</strong> in
+              Whop and the homeowner pays it the same way. This screen builds the itemized statement and deep-links to
+              Whop, so there is no custom card form anywhere on the site.
             </p>
           </div>
 
@@ -121,7 +130,7 @@ export const PlansBookingSection: React.FC<PlansBookingSectionProps> = ({
             className="btn btn-secondary"
             style={{ borderColor: 'rgba(245, 158, 11, 0.5)', color: '#fcd34d' }}
           >
-            <span>Launch Invoices API Demo</span>
+            <span>Open final balance invoice</span>
             <ChevronRight style={{ width: 16, height: 16 }} />
           </button>
         </div>

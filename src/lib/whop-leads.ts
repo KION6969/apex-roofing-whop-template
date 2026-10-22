@@ -1,7 +1,21 @@
 /**
- * Whop Leads API Integration
- * Endpoint: POST https://api.whop.com/api/v1/leads
+ * Estimate form → Whop lead.
+ *
+ * Whop has two documented ways to record a lead against a business:
+ *
+ *   1. `whop.track('lead', …)` from the browser — the pixel is already running
+ *      on Whop-hosted sites, and the event shows up in Dashboard → Events and
+ *      Dashboard → People. This is the path Whop recommends.
+ *   2. `POST /api/v1/events` from a server with an `event:create` API key —
+ *      same event name, same person, but the key stays server-side.
+ *
+ * This module does (1) always, and (2) only when `VITE_LEAD_ENDPOINT` points
+ * at a same-origin route that holds the API key. The browser never sees a
+ * Whop secret.
  */
+
+import { fireWhopPixel, type TrackedPixelEvent } from './whop-tracking';
+import { whopRuntime, isRealAccountId } from './whop-runtime';
 
 export interface LeadSubmissionPayload {
   name: string;
@@ -15,82 +29,120 @@ export interface LeadSubmissionPayload {
   notes?: string;
 }
 
+export type LeadDelivery = 'whop-pixel' | 'whop-pixel+endpoint';
+
 export interface WhopLeadResult {
   success: boolean;
+  /** `lead_…` — also used as the Whop `event_id`, so retries collapse. */
   leadId: string;
+  eventId: string;
   accountId: string;
   createdAt: string;
-  rawPayload: Record<string, any>;
-  mode: 'live' | 'demo-sandbox';
+  /** Which delivery paths accepted the lead. */
+  mode: LeadDelivery;
   message: string;
+  /** The exact custom pixel event that was fired. */
+  pixelEvent: TrackedPixelEvent;
+  /** Present only when an endpoint was configured. */
+  endpointStatus?: number;
+  endpointError?: string;
 }
 
-export async function submitWhopLead(
-  payload: LeadSubmissionPayload,
-  accountId: string = 'biz_apexroofing_demo'
-): Promise<WhopLeadResult> {
-  const metadata = {
+function createId(prefix: string): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return `${prefix}_${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`;
+  }
+  return `${prefix}_${Math.random().toString(36).slice(2, 14)}`;
+}
+
+/** The Whop visitor ID the pixel stores, used to attribute a server-side event. */
+export function readWhopVisitorId(): string | undefined {
+  if (typeof document === 'undefined') return undefined;
+  const match = document.cookie.match(/(?:^|;\s*)_wuid=([^;]*)/);
+  if (match) return decodeURIComponent(match[1]);
+  try {
+    return localStorage.getItem('_wuid') || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export async function submitWhopLead(payload: LeadSubmissionPayload): Promise<WhopLeadResult> {
+  const eventId = createId('lead');
+  const leadId = eventId;
+  const createdAt = new Date().toISOString();
+  const [firstName, ...rest] = payload.name.trim().split(/\s+/);
+
+  // 1. Browser pixel event. Standard event name `lead`, so Whop treats it the
+  //    same way it treats a lead from any other pixel on any other site.
+  const pixelEvent = fireWhopPixel('lead', {
+    event_id: eventId,
+    value: 0,
+    currency: 'usd',
     customer_name: payload.name,
+    customer_email: payload.email,
     customer_phone: payload.phone,
-    service_address: payload.address,
-    zip_code: payload.zipCode,
+    first_name: firstName,
+    last_name: rest.join(' '),
     service_type: payload.serviceRequested,
-    roof_age_years: payload.roofAgeYears || 'unknown',
+    zip_code: payload.zipCode,
     insurance_claim: payload.isInsuranceClaim ? 'yes' : 'no',
-    notes: payload.notes || '',
-    lead_source: 'Roofing_Website_Quote_Form',
-    user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : 'whop-website',
-  };
+    lead_source: 'website_estimate_form',
+  });
 
-  const bodyData = {
-    account_id: accountId,
-    metadata,
-    referrer: typeof document !== 'undefined' ? document.referrer || window.location.href : 'direct',
-  };
+  let endpointStatus: number | undefined;
+  let endpointError: string | undefined;
 
-  // Check if we have a server token or client environment variable
-  const apiKey = (import.meta as any).env?.VITE_WHOP_API_KEY;
-
-  if (apiKey) {
+  // 2. Optional server-side copy: keeps the API key off the page and gives the
+  //    contractor a record even if the buyer blocks the pixel.
+  if (whopRuntime.leadEndpoint) {
     try {
-      const response = await fetch('https://api.whop.com/api/v1/leads', {
+      const response = await fetch(whopRuntime.leadEndpoint, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(bodyData),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          account_id: whopRuntime.accountId,
+          event_id: eventId,
+          event_name: 'lead',
+          event_time: createdAt,
+          action_source: 'website',
+          url: typeof window !== 'undefined' ? window.location.href : undefined,
+          user: {
+            anonymous_id: readWhopVisitorId(),
+            email: payload.email,
+            phone: payload.phone,
+            first_name: firstName,
+            last_name: rest.join(' '),
+            external_id: leadId,
+          },
+          lead: payload,
+        }),
       });
 
-      if (response.ok) {
-        const json = await response.json();
-        return {
-          success: true,
-          leadId: json.id || 'lead_' + Math.random().toString(36).substring(2, 10),
-          accountId: accountId,
-          createdAt: json.created_at || new Date().toISOString(),
-          rawPayload: bodyData,
-          mode: 'live',
-          message: 'Lead successfully captured in Whop CRM and assigned to your business account.',
-        };
+      endpointStatus = response.status;
+      if (!response.ok) {
+        endpointError = `Endpoint returned HTTP ${response.status}`;
       }
-    } catch (err) {
-      console.warn('[Whop Leads API] Live endpoint call failed, returning structured demonstration receipt:', err);
+    } catch (error) {
+      endpointError = error instanceof Error ? error.message : 'Endpoint unreachable';
     }
   }
 
-  // Realistic verified response format from Whop Leads API spec
-  await new Promise(resolve => setTimeout(resolve, 600)); // Network simulation
+  const endpointAccepted = Boolean(whopRuntime.leadEndpoint) && !endpointError;
+  const mode: LeadDelivery = endpointAccepted ? 'whop-pixel+endpoint' : 'whop-pixel';
 
-  const generatedLeadId = 'lead_' + Math.random().toString(36).substring(2, 12);
-  
   return {
     success: true,
-    leadId: generatedLeadId,
-    accountId: accountId,
-    createdAt: new Date().toISOString(),
-    rawPayload: bodyData,
-    mode: 'demo-sandbox',
-    message: 'Quote request registered! Lead created on Whop account ' + accountId + ' with full contact and property metadata.',
+    leadId,
+    eventId,
+    accountId: isRealAccountId(whopRuntime.accountId) ? whopRuntime.accountId : 'not-configured',
+    createdAt,
+    mode,
+    message: endpointAccepted
+      ? 'Lead recorded by the Whop pixel and forwarded to your server endpoint.'
+      : 'Lead recorded as a Whop `lead` event. Open Dashboard → Events to see it.',
+    pixelEvent,
+    endpointStatus,
+    endpointError,
   };
 }

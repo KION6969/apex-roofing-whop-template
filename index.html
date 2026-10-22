@@ -3,30 +3,59 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Apex Shield Roofing & Exteriors | Premium US Roofing Contractor</title>
+    <meta name="theme-color" content="#020617" />
+    <title>Apex Shield Roofing &amp; Exteriors | Premium US Roofing Contractor</title>
     <meta name="description" content="Certified commercial and residential roofing contractors. Lifetime architectural shingle replacement, emergency leak repair, and 21-point drone roof inspections. Flexible 0% APR financing via Whop." />
+
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ea580c'><polygon points='12 2 2 12 5 12 5 22 19 22 19 12 22 12 12 2'/></svg>" />
-    
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
 
-    <!-- Whop Pixel Initializer (Mock fallback for local testing & live on whop.app) -->
-    <script>
-      window.whop = window.whop || function() {
-        (window.whop.q = window.whop.q || []).push(arguments);
-      };
-      if (!window.whop.track) {
-        window.whop.track = function(eventName, eventData) {
-          console.log('%c[Whop Pixel Event]%c ' + eventName, 'background: #ff6423; color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold;', 'color: #ea580c; font-weight: bold;', eventData || {});
-          window.dispatchEvent(new CustomEvent('whop:pixel_event', { detail: { name: eventName, data: eventData, timestamp: new Date().toISOString() } }));
-        };
-      }
-    </script>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
 
-    <!-- Whop Elements CDN -->
+    <!-- Whop CDN: faster element boot -->
+    <link rel="preconnect" href="https://cdn.whop.com" />
+    <link rel="preconnect" href="https://api.whop.com" />
+
+    <!--
+      Whop Element script. On Whop Websites this is served from Whop's own
+      infrastructure; loading it here keeps local development identical.
+    -->
     <script src="https://cdn.whop.com/elements/amber/elements.js" data-whop-elements async></script>
+
+    <!--
+      Local-only pixel stand-in. Whop injects the real pixel (window.whop with
+      track/setScope) on whop.site and whop.app, and this block detects that and
+      does nothing. Running `npm run dev` without it would make every
+      whop.track call throw, so the shim logs instead and marks itself, which
+      tells src/lib/whop-tracking.ts to keep retrying for the real pixel.
+    -->
+    <script>
+      (function () {
+        if (window.whop && typeof window.whop.track === 'function' && !window.whop.__isShim) {
+          window.__whopPixelMode = 'live';
+          return;
+        }
+        window.whop = {
+          __isShim: true,
+          track: function (eventName, eventData) {
+            console.log(
+              '%c[whop.track · local]%c ' + eventName,
+              'background:#ff6423;color:#fff;padding:2px 6px;border-radius:4px;font-weight:700',
+              'color:#ea580c;font-weight:700',
+              eventData || {}
+            );
+            window.dispatchEvent(
+              new CustomEvent('whop:pixel_event', {
+                detail: { name: eventName, data: eventData, timestamp: new Date().toISOString() },
+              })
+            );
+          },
+        };
+        window.__whopPixelMode = 'shim';
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
