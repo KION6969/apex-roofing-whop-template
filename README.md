@@ -10,6 +10,8 @@ knows the company name, the services, or the prices.
 
 ## Live site
 
+![Apex Shield Roofing storefront](docs/screenshot.png)
+
 **https://apex-roofing.whop.site** — deployed with `whop apps deploy` to app
 `app_387jXvVFY3i2K6`. Whop Websites are served on `*.whop.site`; `*.whop.app`
 is the host for installable b2c apps, not websites.
@@ -230,3 +232,8 @@ Layouts collapse to one column below 1024px, two-column form rows become one
 column below 640px, and the checkout modal switches to a full-height scroll
 sheet on phones. Verified at 390×844 and desktop widths with no horizontal
 overflow.
+
+## License
+
+MIT © KION6969
+
