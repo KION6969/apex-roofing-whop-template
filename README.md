@@ -8,6 +8,14 @@ Tailwind v4.
 The whole business is described in one file (`src/roofing.config.ts`); no component
 knows the company name, the services, or the prices.
 
+<p>
+  <a href="https://github.com/KION6969/apex-roofing-whop-template/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/KION6969/apex-roofing-whop-template/actions/workflows/ci.yml/badge.svg" /></a>
+  <img alt="Whop Elements" src="https://img.shields.io/badge/whop-elements-181717?style=flat-square" />
+  <img alt="React 19" src="https://img.shields.io/badge/react-19-149ECA?style=flat-square" />
+  <img alt="TypeScript" src="https://img.shields.io/badge/typescript-5-3178C6?style=flat-square" />
+  <img alt="License MIT" src="https://img.shields.io/badge/license-MIT-6b7280?style=flat-square" />
+</p>
+
 ## Live site
 
 ![Apex Shield Roofing storefront](docs/screenshot.png)
